@@ -145,6 +145,7 @@ const ctx = canvas.getContext('2d');
 let rawPoints = [];   // 현재 입력으로 쓰이는 점들 [[x,y], ...] (매번 단순화 결과로 교체됨)
 let keptPoints = [];  // 마지막으로 계산된 단순화 결과 (미리보기용)
 let isDrawing = false;
+let endpointMarkers = { left: [], right: [], both: [] };
 
 // history[i] = { points: [...], label: '...' } — 단순화를 실행하기 "직전" 상태의 스냅샷.
 // 배열 끝(마지막 요소)이 가장 최근 이전 상태.
@@ -190,6 +191,68 @@ function findReboundIndices(points, threshold) {
   return indices;
 }
 
+function findIncreasingEndpoints(points, reboundIndices) {
+  const leftSet = new Set();
+  const rightSet = new Set();
+
+  for (const center of reboundIndices) {
+    let leftIdx = -1;
+    for (let i = center - 1; i >= 0; i--) {
+      const currentY = toLogicalY(points[i][1]);
+      const towardCenterY = toLogicalY(points[i + 1][1]);
+      if (currentY > towardCenterY) {
+        leftIdx = i;
+      } else {
+        break;
+      }
+    }
+    if (leftIdx >= 0) {
+      leftSet.add(leftIdx);
+    }
+
+    let rightIdx = -1;
+    for (let i = center + 1; i < points.length; i++) {
+      const currentY = toLogicalY(points[i][1]);
+      const towardCenterY = toLogicalY(points[i - 1][1]);
+      if (currentY > towardCenterY) {
+        rightIdx = i;
+      } else {
+        break;
+      }
+    }
+    if (rightIdx >= 0) {
+      rightSet.add(rightIdx);
+    }
+  }
+
+  const both = [];
+  const leftOnly = [];
+  const rightOnly = [];
+
+  for (const idx of leftSet) {
+    if (rightSet.has(idx)) {
+      both.push(idx);
+    } else {
+      leftOnly.push(idx);
+    }
+  }
+  for (const idx of rightSet) {
+    if (!leftSet.has(idx)) {
+      rightOnly.push(idx);
+    }
+  }
+
+  return {
+    left: leftOnly,
+    right: rightOnly,
+    both
+  };
+}
+
+function clearEndpointMarkers() {
+  endpointMarkers = { left: [], right: [], both: [] };
+}
+
 function getPos(evt) {
   const rect = canvas.getBoundingClientRect();
   const cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
@@ -205,6 +268,7 @@ function startDraw(evt) {
   isDrawing = true;
   rawPoints = [getPos(evt)];
   keptPoints = [];
+  clearEndpointMarkers();
   history = [];
   renderHistory();
   resultEl.style.display = 'none';
@@ -312,6 +376,49 @@ function redraw() {
       ctx.stroke();
     }
   }
+
+  if (endpointMarkers.left.length > 0) {
+    ctx.fillStyle = getCss('--left-endpoint');
+    for (const idx of endpointMarkers.left) {
+      const p = rawPoints[idx];
+      if (!p) continue;
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0b0f14';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  if (endpointMarkers.right.length > 0) {
+    ctx.fillStyle = getCss('--right-endpoint');
+    for (const idx of endpointMarkers.right) {
+      const p = rawPoints[idx];
+      if (!p) continue;
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0b0f14';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  if (endpointMarkers.both.length > 0) {
+    ctx.fillStyle = getCss('--both-endpoint');
+    for (const idx of endpointMarkers.both) {
+      const p = rawPoints[idx];
+      if (!p) continue;
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0b0f14';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
   updateReboundCountDisplay(reboundIndices.length);
 }
 
@@ -425,6 +532,7 @@ function runSimplify() {
   // 결과를 새로운 입력값으로 교체 (동시에 orange 점으로 계속 강조 표시)
   rawPoints = points.map(p => p.slice());
   keptPoints = rawPoints.map(p => p.slice());
+  clearEndpointMarkers();
 
   // N 입력값을 실제로 나온 결과 개수(effectiveN)에 맞춰 동기화
   nInput.value = effectiveN;
@@ -443,6 +551,7 @@ function undoOnce() {
   const prev = history.pop();
   rawPoints = prev.points;
   keptPoints = [];
+  clearEndpointMarkers();
   updateNBounds();
   renderHistory();
   redraw();
@@ -457,6 +566,7 @@ function restoreHistoryIndex(idx) {
   rawPoints = target.points;
   history = history.slice(0, idx);
   keptPoints = [];
+  clearEndpointMarkers();
   updateNBounds();
   renderHistory();
   redraw();
@@ -530,6 +640,7 @@ baselineRange.addEventListener('input', () => {
 });
 
 reboundThresholdEl.addEventListener('input', () => {
+  clearEndpointMarkers();
   redraw();
 });
 
@@ -540,13 +651,32 @@ document.getElementById('rescanBtn').addEventListener('click', () => {
   }
   const threshold = getReboundThreshold();
   const found = findReboundIndices(rawPoints, threshold);
+  clearEndpointMarkers();
   redraw(); // 내부에서 findReboundIndices를 다시 계산해 빨간 점으로 표시하고, 개수도 갱신함
   statusEl.textContent = `현재 ${rawPoints.length}개 점 중 반등점 ${found.length}개를 찾았습니다 (y ≤ ${threshold}).`;
+});
+
+document.getElementById('findEndpointsBtn').addEventListener('click', () => {
+  if (rawPoints.length < 3) {
+    statusEl.textContent = '점이 너무 적습니다. 먼저 선을 그려주세요.';
+    return;
+  }
+
+  const threshold = getReboundThreshold();
+  const reboundIndices = findReboundIndices(rawPoints, threshold);
+  endpointMarkers = findIncreasingEndpoints(rawPoints, reboundIndices);
+  redraw();
+
+  const leftCount = endpointMarkers.left.length;
+  const rightCount = endpointMarkers.right.length;
+  const bothCount = endpointMarkers.both.length;
+  statusEl.textContent = `끝점 탐색 완료 · 좌측 ${leftCount}개 · 우측 ${rightCount}개 · 겹침 ${bothCount}개`;
 });
 
 document.getElementById('clearBtn').addEventListener('click', () => {
   rawPoints = [];
   keptPoints = [];
+  clearEndpointMarkers();
   history = [];
   simplifyBtn.disabled = true;
   resultEl.style.display = 'none';

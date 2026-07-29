@@ -35,9 +35,14 @@
         <input id="reboundThreshold" type="number" value="50" style="width:80px;">
         <span style="font-size:0.75rem;color:var(--muted);">인 지점만 탐지</span>
       </div>
-      <button id="rescanBtn" type="button" style="margin-top:8px;width:100%;padding:8px 0;border-radius:7px;border:1px solid var(--panel-border);background:#232b37;color:var(--ink);font-size:0.82rem;cursor:pointer;">
-        현재 점들에서 반등점 다시 찾기
-      </button>
+      <div class="rebound-actions">
+        <button id="rescanBtn" type="button" style="padding:8px 0;border-radius:7px;border:1px solid var(--panel-border);background:#232b37;color:var(--ink);font-size:0.82rem;cursor:pointer;">
+          반등점 다시 찾기
+        </button>
+        <button id="findEndpointsBtn" type="button" style="padding:8px 0;border-radius:7px;border:1px solid var(--panel-border);background:#232b37;color:var(--ink);font-size:0.82rem;cursor:pointer;">
+          좌우 증가 끝점 찾기
+        </button>
+      </div>
     </div>
 
     <div class="field">
@@ -61,6 +66,9 @@
       <div class="row"><span class="swatch kept"></span> 선택된 점 (주황)</div>
       <div class="row"><span class="swatch" style="background:#e04f6b;"></span> 기준선 (y = 0, 점선)</div>
       <div class="row"><span class="swatch" style="background:#ff3b3b;"></span> 반등점 (감소 → 증가 전환, y ≤ 임계값)</div>
+      <div class="row"><span class="swatch left-end"></span> 좌측 증가 끝점 (파랑)</div>
+      <div class="row"><span class="swatch right-end"></span> 우측 증가 끝점 (초록)</div>
+      <div class="row"><span class="swatch both-end"></span> 좌우 겹침 끝점 (보라)</div>
     </div>
 
     <div class="status" id="status">선을 그려주세요.</div>

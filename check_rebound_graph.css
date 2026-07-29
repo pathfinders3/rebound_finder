@@ -11,6 +11,9 @@
   --kept-point: #ff9d5c;
   --baseline: #e04f6b;
   --rebound: #ff3b3b;
+  --left-endpoint: #3b82f6;
+  --right-endpoint: #22c55e;
+  --both-endpoint: #a855f7;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
@@ -178,6 +181,9 @@ canvas {
 }
 .swatch.raw { background: var(--raw-point); }
 .swatch.kept { background: var(--kept-point); }
+.swatch.left-end { background: var(--left-endpoint); }
+.swatch.right-end { background: var(--right-endpoint); }
+.swatch.both-end { background: var(--both-endpoint); }
 .swatch.line-raw { background: none; border-top: 2px solid var(--raw-line); width: 14px; height: 0; border-radius: 0; }
 .swatch.line-kept { background: none; border-top: 2px solid var(--accent); width: 14px; height: 0; border-radius: 0; }
 
@@ -235,6 +241,15 @@ canvas {
 
 #rescanBtn:hover { background: #2a3341; }
 #rescanBtn:active { transform: translateY(1px); }
+#findEndpointsBtn:hover { background: #2a3341; }
+#findEndpointsBtn:active { transform: translateY(1px); }
+
+.rebound-actions {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
 
 .history-list {
   display: flex;
