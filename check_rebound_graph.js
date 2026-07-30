@@ -163,6 +163,7 @@ const baselineValEl = document.getElementById('baselineVal');
 const reboundThresholdEl = document.getElementById('reboundThreshold');
 const copyJsonBtn = document.getElementById('copyJsonBtn');
 const analyzeEndpointBinsBtn = document.getElementById('analyzeEndpointBinsBtn');
+const showExcludedEndpointBtn = document.getElementById('showExcludedEndpointBtn');
 
 const HISTOGRAM_BIN_SIZE = 5;
 let toastTimerId = null;
@@ -632,21 +633,22 @@ function getEndpointIndicesUnique() {
   return [...new Set(merged)].filter(idx => Number.isInteger(idx) && rawPoints[idx]);
 }
 
-function analyzeEndpointYHistogram() {
+function buildEndpointHistogramContext() {
   const endpointIndices = getEndpointIndicesUnique();
   if (endpointIndices.length === 0) {
-    statusEl.textContent = '끝점이 없습니다. 먼저 [좌우 증가 끝점 찾기]를 실행해주세요.';
-    showToast('끝점이 없습니다. 먼저 좌우 증가 끝점을 찾으세요.');
-    return;
+    return null;
   }
 
-  const ys = endpointIndices.map(idx => toLogicalY(rawPoints[idx][1]));
-  const bins = new Map();
+  const entries = endpointIndices.map(idx => ({
+    idx,
+    y: toLogicalY(rawPoints[idx][1])
+  }));
 
-  for (const y of ys) {
-    const binIndex = Math.floor(y / HISTOGRAM_BIN_SIZE);
+  const bins = new Map();
+  for (const entry of entries) {
+    const binIndex = Math.floor(entry.y / HISTOGRAM_BIN_SIZE);
     const bucket = bins.get(binIndex) || [];
-    bucket.push(y);
+    bucket.push(entry);
     bins.set(binIndex, bucket);
   }
 
@@ -660,25 +662,66 @@ function analyzeEndpointYHistogram() {
     }
   }
 
-  const selectedYs = [];
-  for (let b = peakBinIndex - 1; b <= peakBinIndex + 1; b++) {
-    const values = bins.get(b);
-    if (values) selectedYs.push(...values);
-  }
-
-  const sum = selectedYs.reduce((acc, y) => acc + y, 0);
-  const avgY = selectedYs.length > 0 ? sum / selectedYs.length : NaN;
+  const selectedBinIndices = new Set([peakBinIndex - 1, peakBinIndex, peakBinIndex + 1]);
+  const selectedEntries = entries.filter(entry => selectedBinIndices.has(Math.floor(entry.y / HISTOGRAM_BIN_SIZE)));
+  const excludedEntries = entries.filter(entry => !selectedBinIndices.has(Math.floor(entry.y / HISTOGRAM_BIN_SIZE)));
 
   const peakStart = peakBinIndex * HISTOGRAM_BIN_SIZE;
   const peakEnd = peakStart + HISTOGRAM_BIN_SIZE;
+
+  return {
+    endpointIndices,
+    entries,
+    bins,
+    peakBinIndex,
+    peakCount,
+    peakStart,
+    peakEnd,
+    selectedEntries,
+    excludedEntries
+  };
+}
+
+function analyzeEndpointYHistogram() {
+  const ctx = buildEndpointHistogramContext();
+  if (!ctx) {
+    statusEl.textContent = '끝점이 없습니다. 먼저 [좌우 증가 끝점 찾기]를 실행해주세요.';
+    showToast('끝점이 없습니다. 먼저 좌우 증가 끝점을 찾으세요.');
+    return;
+  }
+
+  const sum = ctx.selectedEntries.reduce((acc, entry) => acc + entry.y, 0);
+  const avgY = ctx.selectedEntries.length > 0 ? sum / ctx.selectedEntries.length : NaN;
+
   const message = [
-    `끝점 ${endpointIndices.length}개 분석 완료`,
-    `피크 bin: [${peakStart}, ${peakEnd}) (${peakCount}개)`,
-    `피크±1bin 평균 logical y: ${avgY.toFixed(2)} (대상 ${selectedYs.length}개)`
+    `끝점 ${ctx.endpointIndices.length}개 분석 완료`,
+    `피크 bin: [${ctx.peakStart}, ${ctx.peakEnd}) (${ctx.peakCount}개)`,
+    `피크±1bin 평균 logical y: ${avgY.toFixed(2)} (대상 ${ctx.selectedEntries.length}개)`
   ].join('\n');
 
   showToast(message);
-  statusEl.textContent = `히스토그램 분석 완료 · 피크 bin [${peakStart}, ${peakEnd}) · 평균 logical y ${avgY.toFixed(2)}`;
+  statusEl.textContent = `히스토그램 분석 완료 · 피크 bin [${ctx.peakStart}, ${ctx.peakEnd}) · 평균 logical y ${avgY.toFixed(2)}`;
+}
+
+function showExcludedEndpointPoints() {
+  const ctx = buildEndpointHistogramContext();
+  if (!ctx) {
+    statusEl.textContent = '끝점이 없습니다. 먼저 [좌우 증가 끝점 찾기]를 실행해주세요.';
+    showToast('끝점이 없습니다. 먼저 좌우 증가 끝점을 찾으세요.');
+    return;
+  }
+
+  const excludedYs = ctx.excludedEntries.map(entry => entry.y);
+  const yText = excludedYs.length > 0 ? excludedYs.join(', ') : '없음';
+
+  const message = [
+    `제외 대상 점: ${excludedYs.length}개`,
+    `기준 구간: 피크 [${ctx.peakStart}, ${ctx.peakEnd}) 및 양옆 1개 bin`,
+    `제외 대상 logical y: ${yText}`
+  ].join('\n');
+
+  showToast(message);
+  statusEl.textContent = `제외 대상 계산 완료 · ${excludedYs.length}개 제외됨`;
 }
 
 async function copyPointsAsJson() {
@@ -762,6 +805,7 @@ simplifyBtn.addEventListener('click', runSimplify);
 undoBtn.addEventListener('click', undoOnce);
 copyJsonBtn.addEventListener('click', copyPointsAsJson);
 analyzeEndpointBinsBtn.addEventListener('click', analyzeEndpointYHistogram);
+showExcludedEndpointBtn.addEventListener('click', showExcludedEndpointPoints);
 
 baselineRange.addEventListener('input', () => {
   baselineY = parseInt(baselineRange.value, 10);
