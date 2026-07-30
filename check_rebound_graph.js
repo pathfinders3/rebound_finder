@@ -164,7 +164,7 @@ const reboundThresholdEl = document.getElementById('reboundThreshold');
 const copyJsonBtn = document.getElementById('copyJsonBtn');
 const analyzeEndpointBinsBtn = document.getElementById('analyzeEndpointBinsBtn');
 
-const HISTOGRAM_BIN_SIZE_PX = 5;
+const HISTOGRAM_BIN_SIZE = 5;
 let toastTimerId = null;
 
 // 기준선(y = 0)의 캔버스 픽셀 y좌표. 이보다 위는 논리 y가 양수, 아래는 음수.
@@ -640,11 +640,11 @@ function analyzeEndpointYHistogram() {
     return;
   }
 
-  const ys = endpointIndices.map(idx => rawPoints[idx][1]);
+  const ys = endpointIndices.map(idx => toLogicalY(rawPoints[idx][1]));
   const bins = new Map();
 
   for (const y of ys) {
-    const binIndex = Math.floor(y / HISTOGRAM_BIN_SIZE_PX);
+    const binIndex = Math.floor(y / HISTOGRAM_BIN_SIZE);
     const bucket = bins.get(binIndex) || [];
     bucket.push(y);
     bins.set(binIndex, bucket);
@@ -669,16 +669,16 @@ function analyzeEndpointYHistogram() {
   const sum = selectedYs.reduce((acc, y) => acc + y, 0);
   const avgY = selectedYs.length > 0 ? sum / selectedYs.length : NaN;
 
-  const peakStart = peakBinIndex * HISTOGRAM_BIN_SIZE_PX;
-  const peakEnd = peakStart + HISTOGRAM_BIN_SIZE_PX;
+  const peakStart = peakBinIndex * HISTOGRAM_BIN_SIZE;
+  const peakEnd = peakStart + HISTOGRAM_BIN_SIZE;
   const message = [
     `끝점 ${endpointIndices.length}개 분석 완료`,
-    `피크 bin: [${peakStart}, ${peakEnd})px (${peakCount}개)`,
-    `피크±1bin 평균 y: ${avgY.toFixed(2)}px (대상 ${selectedYs.length}개)`
+    `피크 bin: [${peakStart}, ${peakEnd}) (${peakCount}개)`,
+    `피크±1bin 평균 logical y: ${avgY.toFixed(2)} (대상 ${selectedYs.length}개)`
   ].join('\n');
 
   showToast(message);
-  statusEl.textContent = `히스토그램 분석 완료 · 피크 bin [${peakStart}, ${peakEnd})px · 평균 y ${avgY.toFixed(2)}px`;
+  statusEl.textContent = `히스토그램 분석 완료 · 피크 bin [${peakStart}, ${peakEnd}) · 평균 logical y ${avgY.toFixed(2)}`;
 }
 
 async function copyPointsAsJson() {
