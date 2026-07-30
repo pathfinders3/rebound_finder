@@ -175,6 +175,13 @@ canvas {
 }
 #showExcludedEndpointBtn:hover { background: #2a3341; }
 
+#showMadOutlierEndpointBtn {
+  background: #232b37;
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+}
+#showMadOutlierEndpointBtn:hover { background: #2a3341; }
+
 .toast {
   position: fixed;
   left: 50%;

@@ -164,6 +164,7 @@ const reboundThresholdEl = document.getElementById('reboundThreshold');
 const copyJsonBtn = document.getElementById('copyJsonBtn');
 const analyzeEndpointBinsBtn = document.getElementById('analyzeEndpointBinsBtn');
 const showExcludedEndpointBtn = document.getElementById('showExcludedEndpointBtn');
+const showMadOutlierEndpointBtn = document.getElementById('showMadOutlierEndpointBtn');
 
 const HISTOGRAM_BIN_SIZE = 5;
 let toastTimerId = null;
@@ -633,6 +634,25 @@ function getEndpointIndicesUnique() {
   return [...new Set(merged)].filter(idx => Number.isInteger(idx) && rawPoints[idx]);
 }
 
+function median(values) {
+  if (values.length === 0) return NaN;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function quantileSorted(sortedValues, q) {
+  if (sortedValues.length === 0) return NaN;
+  const pos = (sortedValues.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const next = sortedValues[base + 1];
+  return next !== undefined
+    ? sortedValues[base] + rest * (next - sortedValues[base])
+    : sortedValues[base];
+}
+
 function buildEndpointHistogramContext() {
   const endpointIndices = getEndpointIndicesUnique();
   if (endpointIndices.length === 0) {
@@ -724,6 +744,70 @@ function showExcludedEndpointPoints() {
   statusEl.textContent = `제외 대상 계산 완료 · ${excludedYs.length}개 제외됨`;
 }
 
+function showMadOutlierEndpointPoints() {
+  const ctx = buildEndpointHistogramContext();
+  if (!ctx) {
+    statusEl.textContent = '끝점이 없습니다. 먼저 [좌우 증가 끝점 찾기]를 실행해주세요.';
+    showToast('끝점이 없습니다. 먼저 좌우 증가 끝점을 찾으세요.');
+    return;
+  }
+
+  if (ctx.entries.length < 3) {
+    statusEl.textContent = '끝점이 너무 적어 이상치 판별이 어렵습니다 (최소 3개 필요).';
+    showToast('끝점이 너무 적어 이상치 판별이 어렵습니다.');
+    return;
+  }
+
+  const ys = ctx.entries.map(entry => entry.y);
+  const med = median(ys);
+  const absDevs = ys.map(y => Math.abs(y - med));
+  const mad = median(absDevs);
+
+  let excludedEntries = [];
+  let methodLabel = '';
+  let thresholdText = '';
+
+  if (Number.isFinite(mad) && mad > 0) {
+    const cutoff = 3.5;
+    excludedEntries = ctx.entries.filter(entry => {
+      const modifiedZ = 0.6745 * (entry.y - med) / mad;
+      return entry.y > med && modifiedZ > cutoff;
+    });
+    methodLabel = 'MAD(수정 z-score)';
+    thresholdText = `median=${med.toFixed(2)}, MAD=${mad.toFixed(2)}, cutoff>${cutoff}`;
+  } else {
+    const sortedYs = ys.slice().sort((a, b) => a - b);
+    const q1 = quantileSorted(sortedYs, 0.25);
+    const q3 = quantileSorted(sortedYs, 0.75);
+    const iqr = q3 - q1;
+    const upper = q3 + 1.5 * iqr;
+
+    excludedEntries = iqr > 0
+      ? ctx.entries.filter(entry => entry.y > upper)
+      : [];
+    methodLabel = 'IQR fallback';
+    thresholdText = `Q1=${q1.toFixed(2)}, Q3=${q3.toFixed(2)}, upper=${upper.toFixed(2)}`;
+  }
+
+  const excludedYs = excludedEntries
+    .map(entry => entry.y)
+    .sort((a, b) => b - a);
+
+  const yText = excludedYs.length > 0
+    ? excludedYs.map(y => y.toFixed(2)).join(', ')
+    : '없음';
+
+  const message = [
+    `큰 y 이상치 제외 결과: ${excludedYs.length}개`,
+    `기준: ${methodLabel}`,
+    thresholdText,
+    `제외 대상 logical y: ${yText}`
+  ].join('\n');
+
+  showToast(message);
+  statusEl.textContent = `MAD 기반 제외 계산 완료 · ${excludedYs.length}개 제외됨`;
+}
+
 async function copyPointsAsJson() {
   if (rawPoints.length === 0) {
     statusEl.textContent = '복사할 점이 없습니다. 먼저 선을 그려주세요.';
@@ -806,6 +890,7 @@ undoBtn.addEventListener('click', undoOnce);
 copyJsonBtn.addEventListener('click', copyPointsAsJson);
 analyzeEndpointBinsBtn.addEventListener('click', analyzeEndpointYHistogram);
 showExcludedEndpointBtn.addEventListener('click', showExcludedEndpointPoints);
+showMadOutlierEndpointBtn.addEventListener('click', showMadOutlierEndpointPoints);
 
 baselineRange.addEventListener('input', () => {
   baselineY = parseInt(baselineRange.value, 10);
