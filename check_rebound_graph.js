@@ -162,6 +162,10 @@ const baselineRange = document.getElementById('baselineRange');
 const baselineValEl = document.getElementById('baselineVal');
 const reboundThresholdEl = document.getElementById('reboundThreshold');
 const copyJsonBtn = document.getElementById('copyJsonBtn');
+const analyzeEndpointBinsBtn = document.getElementById('analyzeEndpointBinsBtn');
+
+const HISTOGRAM_BIN_SIZE_PX = 5;
+let toastTimerId = null;
 
 // 기준선(y = 0)의 캔버스 픽셀 y좌표. 이보다 위는 논리 y가 양수, 아래는 음수.
 let baselineY = parseInt(baselineRange.value, 10);
@@ -596,6 +600,87 @@ function updateNBounds() {
   simplifyBtn.disabled = rawPoints.length < 3;
 }
 
+function getOrCreateToastEl() {
+  let toastEl = document.getElementById('toast');
+  if (toastEl) return toastEl;
+  toastEl = document.createElement('div');
+  toastEl.id = 'toast';
+  toastEl.className = 'toast';
+  document.body.appendChild(toastEl);
+  return toastEl;
+}
+
+function showToast(message, ms = 7600) {
+  const toastEl = getOrCreateToastEl();
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+
+  if (toastTimerId) {
+    clearTimeout(toastTimerId);
+  }
+  toastTimerId = setTimeout(() => {
+    toastEl.classList.remove('show');
+  }, ms);
+}
+
+function getEndpointIndicesUnique() {
+  const merged = [
+    ...endpointMarkers.left,
+    ...endpointMarkers.right,
+    ...endpointMarkers.both
+  ];
+  return [...new Set(merged)].filter(idx => Number.isInteger(idx) && rawPoints[idx]);
+}
+
+function analyzeEndpointYHistogram() {
+  const endpointIndices = getEndpointIndicesUnique();
+  if (endpointIndices.length === 0) {
+    statusEl.textContent = '끝점이 없습니다. 먼저 [좌우 증가 끝점 찾기]를 실행해주세요.';
+    showToast('끝점이 없습니다. 먼저 좌우 증가 끝점을 찾으세요.');
+    return;
+  }
+
+  const ys = endpointIndices.map(idx => rawPoints[idx][1]);
+  const bins = new Map();
+
+  for (const y of ys) {
+    const binIndex = Math.floor(y / HISTOGRAM_BIN_SIZE_PX);
+    const bucket = bins.get(binIndex) || [];
+    bucket.push(y);
+    bins.set(binIndex, bucket);
+  }
+
+  let peakBinIndex = null;
+  let peakCount = -1;
+  for (const [binIndex, values] of bins.entries()) {
+    const count = values.length;
+    if (count > peakCount || (count === peakCount && binIndex < peakBinIndex)) {
+      peakCount = count;
+      peakBinIndex = binIndex;
+    }
+  }
+
+  const selectedYs = [];
+  for (let b = peakBinIndex - 1; b <= peakBinIndex + 1; b++) {
+    const values = bins.get(b);
+    if (values) selectedYs.push(...values);
+  }
+
+  const sum = selectedYs.reduce((acc, y) => acc + y, 0);
+  const avgY = selectedYs.length > 0 ? sum / selectedYs.length : NaN;
+
+  const peakStart = peakBinIndex * HISTOGRAM_BIN_SIZE_PX;
+  const peakEnd = peakStart + HISTOGRAM_BIN_SIZE_PX;
+  const message = [
+    `끝점 ${endpointIndices.length}개 분석 완료`,
+    `피크 bin: [${peakStart}, ${peakEnd})px (${peakCount}개)`,
+    `피크±1bin 평균 y: ${avgY.toFixed(2)}px (대상 ${selectedYs.length}개)`
+  ].join('\n');
+
+  showToast(message);
+  statusEl.textContent = `히스토그램 분석 완료 · 피크 bin [${peakStart}, ${peakEnd})px · 평균 y ${avgY.toFixed(2)}px`;
+}
+
 async function copyPointsAsJson() {
   if (rawPoints.length === 0) {
     statusEl.textContent = '복사할 점이 없습니다. 먼저 선을 그려주세요.';
@@ -676,6 +761,7 @@ function renderHistory() {
 simplifyBtn.addEventListener('click', runSimplify);
 undoBtn.addEventListener('click', undoOnce);
 copyJsonBtn.addEventListener('click', copyPointsAsJson);
+analyzeEndpointBinsBtn.addEventListener('click', analyzeEndpointYHistogram);
 
 baselineRange.addEventListener('input', () => {
   baselineY = parseInt(baselineRange.value, 10);

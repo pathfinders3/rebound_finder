@@ -161,6 +161,40 @@ canvas {
 }
 #copyJsonBtn:hover { background: #2a3341; }
 
+#analyzeEndpointBinsBtn {
+  background: #232b37;
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+}
+#analyzeEndpointBinsBtn:hover { background: #2a3341; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translate(-50%, 14px);
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(11, 15, 20, 0.95);
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  font-family: var(--mono);
+  line-height: 1.4;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  transition: opacity 180ms ease, transform 180ms ease;
+  z-index: 9999;
+  max-width: min(90vw, 680px);
+  white-space: pre-line;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 #simplifyBtn {
   background: var(--accent);
   color: #0b1712;
