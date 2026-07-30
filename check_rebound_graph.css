@@ -154,6 +154,13 @@ canvas {
 }
 #clearBtn:hover { background: #2a3341; }
 
+#copyJsonBtn {
+  background: #232b37;
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+}
+#copyJsonBtn:hover { background: #2a3341; }
+
 #simplifyBtn {
   background: var(--accent);
   color: #0b1712;

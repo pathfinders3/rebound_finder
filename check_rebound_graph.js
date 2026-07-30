@@ -161,6 +161,7 @@ const coordReadoutEl = document.getElementById('coordReadout');
 const baselineRange = document.getElementById('baselineRange');
 const baselineValEl = document.getElementById('baselineVal');
 const reboundThresholdEl = document.getElementById('reboundThreshold');
+const copyJsonBtn = document.getElementById('copyJsonBtn');
 
 // 기준선(y = 0)의 캔버스 픽셀 y좌표. 이보다 위는 논리 y가 양수, 아래는 음수.
 let baselineY = parseInt(baselineRange.value, 10);
@@ -595,6 +596,49 @@ function updateNBounds() {
   simplifyBtn.disabled = rawPoints.length < 3;
 }
 
+async function copyPointsAsJson() {
+  if (rawPoints.length === 0) {
+    statusEl.textContent = '복사할 점이 없습니다. 먼저 선을 그려주세요.';
+    return;
+  }
+
+  const payload = rawPoints.map(([x, pixelY]) => ({
+    x,
+    y: toLogicalY(pixelY)
+  }));
+  const jsonText = JSON.stringify(payload, null, 2);
+
+  try {
+    await navigator.clipboard.writeText(jsonText);
+    statusEl.textContent = `현재 점 ${payload.length}개를 JSON으로 클립보드에 복사했습니다.`;
+    return;
+  } catch (_) {
+    // Clipboard API가 차단된 환경에서도 동작하도록 보조 경로를 사용한다.
+  }
+
+  const ta = document.createElement('textarea');
+  ta.value = jsonText;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  ta.style.pointerEvents = 'none';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch (_) {
+    copied = false;
+  }
+  document.body.removeChild(ta);
+
+  statusEl.textContent = copied
+    ? `현재 점 ${payload.length}개를 JSON으로 클립보드에 복사했습니다.`
+    : '클립보드 복사에 실패했습니다. 브라우저 권한을 확인해주세요.';
+}
+
 function renderHistory() {
   undoBtn.disabled = history.length === 0;
 
@@ -631,6 +675,7 @@ function renderHistory() {
 
 simplifyBtn.addEventListener('click', runSimplify);
 undoBtn.addEventListener('click', undoOnce);
+copyJsonBtn.addEventListener('click', copyPointsAsJson);
 
 baselineRange.addEventListener('input', () => {
   baselineY = parseInt(baselineRange.value, 10);
